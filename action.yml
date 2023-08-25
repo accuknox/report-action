@@ -78,7 +78,8 @@ runs:
         if [ "${{ inputs.process-ignore-paths }}" != "" ]; then
           setupArgs+=" -i ${{ inputs.process-ignore-paths }}"
         fi
-
+        
+        sleep 120
         accuknox-cli report $setupArgs
         
         mkdir downloads
