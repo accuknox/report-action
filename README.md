@@ -73,7 +73,7 @@ inputs:
 Steps for using install-action in a workflow yaml file 
 - Checkout into the repo using checkout action.
 - Set up a k8's cluster.
-- Use accuknox-install action to install Kubearmor and Discovery Engine.
+- Use [accuknox-install](https://github.com/marketplace/actions/accuknox-install) action to install Kubearmor and Discovery Engine.
 - Use accuknox-report action to generate report using Kubearmor and Discovery Engine.
 
 ### Generate report at specific path
