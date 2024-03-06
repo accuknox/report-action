@@ -1,91 +1,86 @@
 name: accuknox-report
 description: 'Generate reports using kubearmor and discovery engine'
 inputs:
-  baseline-report-path:
+  baseline:
     description: 'baseline report path'
     required: true
     default: "baseline/report.json"
-  labels:
-    description: 'labels. possible value: kubearmor-app: kubearmor-relay'
-    required: false
-    default: ""
-  operation:
-    description: 'operation. possible values: process, file, network, syscall'
-    required: false
-    default: ""
-  container-name:
-    description: 'container name'
-    required: false
-    default: ""
   namespaces:
-    description: 'namespaces'
+    description: 'namespaces. include specific namespaces for final report generation'
+    required: false
+    default: ""
+  destination:
+    description: 'destination. include specific destination paths for final report generation'
+    required: false
+    default: ""
+  ignore-command:
+    description: 'ignore-command. ignore network commands that should not be considered for final report generation'
+    required: false
+    default: ""
+  ignore-path:
+    description: 'ignore-path. ignore paths (source or destination) that should not be treated for final report generation'
     required: false
     default: ""
   workloads:
-    description: 'workloads. possible values: deployment/mysql, statefulsets/vault, deployment/*'
+    description: 'workloads. filter the specific workloads format: <namespace>/<resource>'
     required: false
     default: ""
   source:
-    description: 'source'
+    description: 'source. include specific source paths for final report generation'
     required: false
     default: ""
-  process-ignore-paths:
-    description: 'process ignore paths. possible value: /sbin '
-    required: false
-    default: ""
-  file-ignore-paths:
-    description: 'file ignore paths. possible value: /sbin '
-    required: false
-    default: ""
-  ignore-return-code:
-    description: 'ignore return code. possible values: true/false'
+  operation:
+    description: 'operation. filter out by specific operation type such as file, process, network for final repot generation'
     required: false
     default: ""
   view:
-    description: 'view type. possible value: tabular'
+    description: 'view type. possible value: table'
     required: false
-    default: "tabular"
+    default: "table"
 
 runs:
   using: "composite"
   steps:
     - name: Generate report
       run: |
-        accuknox-cli version
+        knoxctl --help
 
         setupArgs=""
-        if [ "${{ inputs.baseline-report-path }}" != "" ]; then
-          setupArgs+=" -b ${{ inputs.baseline-report-path }}"
+        if [ "${{ inputs.baseline }}" != "" ]; then
+          setupArgs+=" --baseline ${{ inputs.baseline }}"
         fi
-        if [ "${{ inputs.labels }}" != "" ]; then
-          setupArgs+=" -l ${{ inputs.labels }}"
+        if [ "${{ inputs.operation }}" != "" ]; then 
+          setupArgs+=" --operation ${{ inputs.operation }}"
         fi
-        if [ "${{ inputs.operation }}" != "" ]; then
-          setupArgs+=" -t ${{ inputs.operation }}"
+        if [ "${{ inputs.workloads }}" != "" ]; then 
+          setupArgs+=" --workload ${{ inputs.workloads }}"
         fi
-        if [ "${{ inputs.container-name }}" != "" ]; then
-          setupArgs+=" --container ${{ inputs.container-name }}"
+        if [ "${{ inputs.namespaces }}" != "" ]; then 
+          setupArgs+=" --namespaces ${{ inputs.namespaces }}"
         fi
-        if [ "${{ inputs.namespaces }}" != "" ]; then
-          setupArgs+=" -n ${{ inputs.namespaces }}"
+        if [ "${{ inputs.source }}" != "" ]; then 
+          setupArgs+=" --source ${{ inputs.source }}"
         fi
-        if [ "${{ inputs.source }}" != "" ]; then
-          setupArgs+=" -s ${{ inputs.source }}"
+        if [ "${{ inputs.ignore-path }}" != "" ]; then 
+          setupArgs+=" --ignore-path ${{ inputs.ignore-path }}"
         fi
-        if [ "${{ inputs.file-ignore-paths }}" != "" ]; then
-          setupArgs+=" -i ${{ inputs.file-ignore-paths }}"
+        if [ "${{ inputs.ignore-command }}" != "" ]; then 
+          setupArgs+=" --ignore-command ${{ inputs.ignore-command }}"
         fi
-        if [ "${{ inputs.process-ignore-paths }}" != "" ]; then
-          setupArgs+=" -i ${{ inputs.process-ignore-paths }}"
+        if [ "${{ inputs.destination }}" != "" ]; then 
+          setupArgs+=" --destination ${{ inputs.destination }}"
+        fi
+        if [ "${{ inputs.view }}" != "" ]; then
+          setupArgs+=" --view ${{ inputs.view }}"
         fi
         
         sleep 360
-        accuknox-cli report $setupArgs
+        knoxctl report $setupArgs
         
         mkdir downloads
-        mv /tmp/report-*.json downloads/report.json
-        mv /tmp/diff-report-*.json downloads/diff-report.json
-        mv /tmp/diff-report-*.md downloads/diff-report.md
+        mv /knoxctl_out/reports/latest_summary_*.json downloads/latest_summary.json
+        mv /knoxctl_out/reports/diff_*.json downloads/diff.json
+        mv /knoxctl_out/reports/pr_report_*.md downloads/pr_report.md
       shell: bash
 
     - name: Upload artifacts
@@ -99,6 +94,8 @@ runs:
       with:
         filePath: downloads/diff-report.md
 
-branding:
-  icon: 'check-circle'
-  color: 'green'
+    - name: Generate Icon Badge
+      uses: damienaicheh/icon-badge-action@v1.0.0
+      with:
+        images-path: './ak_logo.png'
+
