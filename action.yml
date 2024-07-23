@@ -21,4 +21,4 @@ inputs:
 
 runs:
   using: 'node20'
-  main: 'index.js'
+  main: 'src/main/index.js'
