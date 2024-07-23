@@ -2,6 +2,7 @@ const core = require('@actions/core');
 const exec = require('@actions/exec');
 const https = require('https');
 const fs = require('fs');
+const { spawn } = require('child_process');
 
 // get the latest KubeArmor version to download
 async function getLatestKubeArmorVersion() {
@@ -101,8 +102,27 @@ async function runKnoxctlScan() {
   const commandString = command.join(' ');
   console.log(`Executing command: ${commandString}`);
 
-  await exec.exec(commandString);
-  console.log('knoxctl scan completed');
+  return new Promise((resolve, reject) => {
+    const scanProcess = spawn(command[0], command.slice(1), { stdio: 'inherit' });
+
+    console.log(`knoxctl scan started with PID: ${scanProcess.pid}`);
+
+    // Run the scan for 60 seconds (adjust as needed)
+    setTimeout(() => {
+      console.log('Stopping knoxctl scan...');
+      scanProcess.kill('SIGINT');  // Send interrupt signal
+    }, 60000);  // 60 seconds
+
+    scanProcess.on('close', (code) => {
+      console.log(`knoxctl scan process exited with code ${code}`);
+      resolve();
+    });
+
+    scanProcess.on('error', (err) => {
+      console.error('Failed to start knoxctl scan process:', err);
+      reject(err);
+    });
+  });
 }
 
 // runs
