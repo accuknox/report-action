@@ -3,6 +3,7 @@ const exec = require('@actions/exec');
 const https = require('https');
 const fs = require('fs');
 const { spawn } = require('child_process');
+const path = require('path');
 
 // get the latest KubeArmor version to download
 async function getLatestKubeArmorVersion() {
@@ -50,6 +51,14 @@ async function installKnoxctl() {
     await exec.exec('knoxctl version')
 }
 
+function getPidFilePath() {
+  if (process.env.GITHUB_WORKSPACE) {
+    return path.join(process.env.GITHUB_WORKSPACE, 'knoxctl_scan_pid');
+  } else {
+    return path.join(__dirname, '..', '..', 'knoxctl_scan_pid');
+  }
+}
+
 // start KubeArmor sysd service 
 async function startKubeArmor() {
   await exec.exec('sudo systemctl start kubearmor');
@@ -74,6 +83,8 @@ if (!process.env.GITHUB_ACTIONS) {
   core.setFailed = console.error;
 }
 
+// runKnoxctlScan runs knoxctl scan as a background process
+// and is killed when post job is triggered from CI
 async function runKnoxctlScan() {
   const knoxctlOptions = [
     { name: 'all', flag: '--all', type: 'boolean' },
@@ -102,30 +113,23 @@ async function runKnoxctlScan() {
   const commandString = command.join(' ');
   console.log(`Executing command: ${commandString}`);
 
-  return new Promise((resolve, reject) => {
-    const scanProcess = spawn(command[0], command.slice(1), { stdio: 'inherit' });
-
-    console.log(`knoxctl scan started with PID: ${scanProcess.pid}`);
-
-    // Run the scan for 60 seconds (adjust as needed)
-    setTimeout(() => {
-      console.log('Stopping knoxctl scan...');
-      scanProcess.kill('SIGINT');  // Send interrupt signal
-    }, 60000);  // 60 seconds
-
-    scanProcess.on('close', (code) => {
-      console.log(`knoxctl scan process exited with code ${code}`);
-      resolve();
-    });
-
-    scanProcess.on('error', (err) => {
-      console.error('Failed to start knoxctl scan process:', err);
-      reject(err);
-    });
+  const scanProcess = spawn(command[0], command.slice(1), { 
+    stdio: 'inherit',
+    detached: true
   });
+
+  console.log(`knoxctl scan started with PID: ${scanProcess.pid}`);
+
+  const pidFile = getPidFilePath();
+  fs.writeFileSync(pidFile, scanProcess.pid.toString()); 
+
+  // letting the parent exit
+  scanProcess.unref();
+
+  console.log(`knoxctl scan PID written to ${pidFile}`);
+  console.log('knoxctl scan is running in the background. Use the post script to stop it.');
 }
 
-// runs
 async function run() {
   try {
     if (!process.env.GITHUB_ACTIONS) {
@@ -148,7 +152,6 @@ async function run() {
     }
 
     await runKnoxctlScan();
-    console.log('knoxctl scan completed');
 
   } catch (error) {
     core.setFailed(error.message);
