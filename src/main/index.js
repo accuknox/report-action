@@ -94,6 +94,8 @@ async function runKnoxctlScan() {
 
   let command = ['knoxctl', 'scan'];
 
+  let outputDir = './test-output';  // Default output directory
+
   knoxctlOptions.forEach(option => {
     let value;
 
@@ -105,10 +107,19 @@ async function runKnoxctlScan() {
     } else if (option.type === 'string') {
       value = core.getInput(option.name);
       if (value) {
+        if (option.name === 'output') {
+          outputDir = value;  // Store the output directory
+        }
         command.push(option.flag, value);
       }
     }
   });
+
+  // Create the output directory if it doesn't exist
+  if (!fs.existsSync(outputDir)) {
+    console.log(`Creating output directory: ${outputDir}`);
+    fs.mkdirSync(outputDir, { recursive: true });
+  }
 
   const commandString = command.join(' ');
   console.log(`Executing command: ${commandString}`);
