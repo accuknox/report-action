@@ -94,7 +94,7 @@ async function runKnoxctlScan() {
 
   let command = ['knoxctl', 'scan'];
 
-  let outputDir = './test-output';  // Default output directory
+  let outputDir = './knoxctl-results';  
 
   knoxctlOptions.forEach(option => {
     let value;
@@ -108,14 +108,13 @@ async function runKnoxctlScan() {
       value = core.getInput(option.name);
       if (value) {
         if (option.name === 'output') {
-          outputDir = value;  // Store the output directory
+          outputDir = value;  
         }
         command.push(option.flag, value);
       }
     }
   });
 
-  // Create the output directory if it doesn't exist
   if (!fs.existsSync(outputDir)) {
     console.log(`Creating output directory: ${outputDir}`);
     fs.mkdirSync(outputDir, { recursive: true });
@@ -134,7 +133,7 @@ async function runKnoxctlScan() {
   const pidFile = getPidFilePath();
   fs.writeFileSync(pidFile, scanProcess.pid.toString()); 
 
-  // letting the parent exit
+  // letting the parent exit and keep running scan job in the background
   scanProcess.unref();
 
   console.log(`knoxctl scan PID written to ${pidFile}`);

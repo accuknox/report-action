@@ -2,6 +2,11 @@ const fs = require('fs');
 const path = require('path');
 const { execSync } = require('child_process');
 
+/*
+    * Post is supposed to run as post job. 
+    * After all the CI events/steps are over. 
+*/
+
 function getPidFilePath() {
   if (process.env.GITHUB_WORKSPACE) {
     return path.join(process.env.GITHUB_WORKSPACE, 'knoxctl_scan_pid');
@@ -10,6 +15,8 @@ function getPidFilePath() {
   }
 }
 
+// stopKnoxctlScan sends a SIGINT to running scan job 
+// it does this by looking for a PID of currently running scan job
 function stopKnoxctlScan() {
   const pidFile = getPidFilePath();
   
@@ -30,6 +37,7 @@ function stopKnoxctlScan() {
   }
 }
 
+// getLatestFile gets the file that needs to be displayed 
 function getLatestFile(directory, prefix) {
   const files = fs.readdirSync(directory)
     .filter(file => file.startsWith(prefix) && file.endsWith('.md'))
@@ -48,6 +56,8 @@ function addToGitHubSummary(content) {
   }
 }
 
+// processResults will process markdown and show it in 
+// Actions' runtime summary 
 function processResults() {
   const isGitHubActions = !!process.env.GITHUB_ACTIONS;
   const outputDir = isGitHubActions ? process.env.GITHUB_WORKSPACE : path.join(__dirname, '..', '..', 'test-output');
