@@ -9,7 +9,7 @@ inputs:
   all:
     description: 'Scan for all events collected by KubeArmor'
     required: false
-    default: 'false'
+    default: 'true'
   system:
     description: 'Scan for only system events'
     required: false
