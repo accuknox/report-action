@@ -1,0 +1,31 @@
+name: Report CI workflow
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Use nodejs
+      uses: actions/setup-node@v3
+      with:
+        node-version: '20'
+
+    - name: Install deps
+      run: npm ci
+
+    - name: Lint and format
+      run: |
+        npm run lint
+        npm run format
+
+    - name: Build 
+      run: npm run build
