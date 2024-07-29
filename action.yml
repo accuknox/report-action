@@ -1,104 +1,25 @@
-name: accuknox-report
-description: 'Generate reports using kubearmor and discovery engine'
+name: CI/CD Scan by AccuKnox
+description: 'Secure your CI/CD pipelines, powered by KubeArmor'
+branding:
+  icon: shield
+  color: green
+author: AccuKnox
+
 inputs:
-  baseline-report-path:
-    description: 'baseline report path'
-    required: true
-    default: "baseline/report.json"
-  labels:
-    description: 'labels. possible value: kubearmor-app: kubearmor-relay'
+  all:
+    description: 'Scan for all events collected by KubeArmor'
     required: false
-    default: ""
-  operation:
-    description: 'operation. possible values: process, file, network, syscall'
+    default: 'true'
+  system:
+    description: 'Scan for only system events'
     required: false
-    default: ""
-  container-name:
-    description: 'container name'
+    default: 'false'
+  output:
+    description: 'Output path for the files to be placed'
     required: false
-    default: ""
-  namespaces:
-    description: 'namespaces'
-    required: false
-    default: ""
-  workloads:
-    description: 'workloads. possible values: deployment/mysql, statefulsets/vault, deployment/*'
-    required: false
-    default: ""
-  source:
-    description: 'source'
-    required: false
-    default: ""
-  process-ignore-paths:
-    description: 'process ignore paths. possible value: /sbin '
-    required: false
-    default: ""
-  file-ignore-paths:
-    description: 'file ignore paths. possible value: /sbin '
-    required: false
-    default: ""
-  ignore-return-code:
-    description: 'ignore return code. possible values: true/false'
-    required: false
-    default: ""
-  view:
-    description: 'view type. possible value: tabular'
-    required: false
-    default: "tabular"
+    default: './knoxctl-results'
 
 runs:
-  using: "composite"
-  steps:
-    - name: Generate report
-      run: |
-        accuknox-cli version
-
-        setupArgs=""
-        if [ "${{ inputs.baseline-report-path }}" != "" ]; then
-          setupArgs+=" -b ${{ inputs.baseline-report-path }}"
-        fi
-        if [ "${{ inputs.labels }}" != "" ]; then
-          setupArgs+=" -l ${{ inputs.labels }}"
-        fi
-        if [ "${{ inputs.operation }}" != "" ]; then
-          setupArgs+=" -t ${{ inputs.operation }}"
-        fi
-        if [ "${{ inputs.container-name }}" != "" ]; then
-          setupArgs+=" --container ${{ inputs.container-name }}"
-        fi
-        if [ "${{ inputs.namespaces }}" != "" ]; then
-          setupArgs+=" -n ${{ inputs.namespaces }}"
-        fi
-        if [ "${{ inputs.source }}" != "" ]; then
-          setupArgs+=" -s ${{ inputs.source }}"
-        fi
-        if [ "${{ inputs.file-ignore-paths }}" != "" ]; then
-          setupArgs+=" -i ${{ inputs.file-ignore-paths }}"
-        fi
-        if [ "${{ inputs.process-ignore-paths }}" != "" ]; then
-          setupArgs+=" -i ${{ inputs.process-ignore-paths }}"
-        fi
-        
-        sleep 360
-        accuknox-cli report $setupArgs
-        
-        mkdir downloads
-        mv /tmp/report-*.json downloads/report.json
-        mv /tmp/diff-report-*.json downloads/diff-report.json
-        mv /tmp/diff-report-*.md downloads/diff-report.md
-      shell: bash
-
-    - name: Upload artifacts
-      uses: actions/upload-artifact@v2
-      with:
-        name: Baseline report
-        path: downloads
-    
-    - name: PR comment with file
-      uses: thollander/actions-comment-pull-request@v2
-      with:
-        filePath: downloads/diff-report.md
-
-branding:
-  icon: 'check-circle'
-  color: 'green'
+  using: 'node20'
+  main: 'dist/main/index.js'
+  post: 'dist/post/index.js'
