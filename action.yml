@@ -17,7 +17,7 @@ inputs:
   output:
     description: 'Output path for the files to be placed'
     required: false
-    default: './knoxctl-scan-results'
+    default: './knoxctl-results'
 
 runs:
   using: 'node20'
