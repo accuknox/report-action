@@ -1,0 +1,43 @@
+name: Release Workflow
+
+on:
+  push:
+    tags: [ 'v*.*.*' ]
+
+jobs:
+  compile-and-commit:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v3
+      with:
+        fetch-depth: 0
+
+    - name: Use nodejs
+      uses: actions/setup-node@v3
+      with:
+        node-version: '20'
+
+    - name: Install deps
+      run: npm ci
+
+    - name: Build
+      run: npm run build
+      id: build
+
+    - name: Commit compiled JS code
+      if: steps.build.outcome == 'success'
+      run: |
+        git config --local user.name 'github-actions[bot]'
+        git config --local user.email 'github-actions[bot]@users.noreply.github.com'
+        git checkout ${{ github.ref_name }}  # Checkout the specific release tag
+        git add dist
+        git commit -m "[bot] Add compiled JS for release ${{ github.ref_name }}"
+        git push origin ${{ github.ref_name }}  # Push to the tag and not to main, this helps to keep track of releases
+
+    - name: Handle build failure
+      if: steps.build.outcome != 'success'
+      run: |
+        echo "Build failed. Unable to commit compiled JS code."
+        echo "Please check the build logs for errors and fix them before re-releasing."
+        exit 1
