@@ -57,7 +57,7 @@ async function installKubeArmor(filePath: string): Promise<void> {
 
 async function installKnoxctl(): Promise<void> {
 	const installCmd =
-		"curl -sfL https://knoxctl.accuknox.com/install.sh | sudo -s -- -b /usr/local/bin";
+		"curl -sfL https://knoxctl.accuknox.com/install.sh | sudo sh -s -- -b /usr/local/bin";
 	await exec.exec(installCmd);
 	await exec.exec("knoxctl version");
 }
