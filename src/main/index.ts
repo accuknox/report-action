@@ -1,14 +1,14 @@
+import { type ChildProcess, spawn } from "node:child_process";
+import * as fs from "node:fs";
+import * as https from "node:https";
+import * as path from "node:path";
 import * as core from "@actions/core";
 import * as exec from "@actions/exec";
-import * as https from "node:https";
-import * as fs from "node:fs";
-import { spawn, ChildProcess } from "node:child_process";
-import * as path from "node:path";
 import {
-	log,
-	getPidFilePath,
-	getOutputDir,
 	IS_GITHUB_ACTIONS,
+	getOutputDir,
+	getPidFilePath,
+	log,
 	mockCoreForLocalTesting,
 } from "@common/common";
 
@@ -22,7 +22,9 @@ async function getLatestKubeArmorVersion(): Promise<string> {
 				},
 				(res) => {
 					let data = "";
-					res.on("data", (chunk) => (data += chunk));
+					res.on("data", (chunk) => {
+						data += chunk;
+					});
 					res.on("end", () => {
 						const version = JSON.parse(data).tag_name.replace("v", "");
 						resolve(version);
@@ -74,10 +76,10 @@ async function runKnoxctlScan(): Promise<void> {
 		{ name: "output", flag: "--output", type: "string" },
 	];
 
-	let command: string[] = ["knoxctl", "scan"];
+	const command: string[] = ["knoxctl", "scan"];
 	let outputDir = getOutputDir();
 
-	knoxctlOptions.forEach((option) => {
+	for (const option of knoxctlOptions) {
 		let value: boolean | string;
 
 		if (option.type === "boolean") {
@@ -94,7 +96,7 @@ async function runKnoxctlScan(): Promise<void> {
 				command.push(option.flag, value);
 			}
 		}
-	});
+	}
 
 	if (!fs.existsSync(outputDir)) {
 		log(`Creating output directory: ${outputDir}`);
@@ -112,7 +114,7 @@ async function runKnoxctlScan(): Promise<void> {
 	log(`knoxctl scan started with PID: ${scanProcess.pid}`);
 
 	const pidFile = getPidFilePath();
-	fs.writeFileSync(pidFile, scanProcess.pid!.toString());
+	fs.writeFileSync(pidFile, scanProcess.pid?.toString() ?? "");
 
 	scanProcess.unref();
 

@@ -1,6 +1,6 @@
-import * as core from "@actions/core";
 import * as fs from "node:fs";
 import * as path from "node:path";
+import * as core from "@actions/core";
 
 export const PID_FILE_NAME = "knoxctl_scan_pid";
 export const RESULTS_DIR_NAME = "knoxctl-results";
@@ -43,7 +43,7 @@ export function getOutputDir(): string {
 
 export function mockCoreForLocalTesting(): void {
 	if (!IS_GITHUB_ACTIONS) {
-		(core as any).getInput = (name: string): string => {
+		(core as CoreMock).getInput = (name: string): string => {
 			const inputs: { [key: string]: string } = {
 				all: "true",
 				system: "false",
@@ -52,10 +52,16 @@ export function mockCoreForLocalTesting(): void {
 			return inputs[name] || "";
 		};
 
-		(core as any).getBooleanInput = (name: string): boolean => {
-			return (core as any).getInput(name) === "true";
+		(core as CoreMock).getBooleanInput = (name: string): boolean => {
+			return (core as CoreMock).getInput(name) === "true";
 		};
 
-		(core as any).setFailed = console.error;
+		(core as CoreMock).setFailed = console.error;
 	}
+}
+
+interface CoreMock {
+	getInput: (name: string) => string;
+	getBooleanInput: (name: string) => boolean;
+	setFailed: (message: string) => void;
 }
