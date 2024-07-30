@@ -14,15 +14,12 @@ const PROCESS_TREE_PREFIX = "knoxctl_scan_process_tree_";
 
 function stopKnoxctlScan(): void {
 	const pidFile = getPidFilePath();
-
 	if (fs.existsSync(pidFile)) {
 		const pid = fs.readFileSync(pidFile, ENCODING).trim();
 		log(`Attempting to stop knoxctl scan process with PID: ${pid}`);
-
 		try {
 			process.kill(Number(pid), "SIGINT");
 			log("Sent SIGINT signal to knoxctl scan process");
-
 			setTimeout(() => {
 				try {
 					process.kill(Number(pid), 0);
@@ -31,7 +28,6 @@ function stopKnoxctlScan(): void {
 				} catch (error) {
 					log("knoxctl scan process has been terminated");
 				}
-
 				fs.unlinkSync(pidFile);
 				log("Removed PID file");
 			}, 5000);
@@ -50,6 +46,12 @@ function stopKnoxctlScan(): void {
 
 function getLatestFile(directory: string, prefix: string): string | null {
 	log(`Searching for files with prefix "${prefix}" in directory: ${directory}`);
+
+	if (!fs.existsSync(directory)) {
+		log(`Directory does not exist: ${directory}`, "error");
+		return null;
+	}
+
 	const files = fs.readdirSync(directory);
 	log(`Files in directory: ${files.join(", ")}`);
 
@@ -93,23 +95,18 @@ function processResultFile(
 
 function processResults(): void {
 	const outputDir = path.resolve(getOutputDir());
-
-	if (!outputDir) {
-		throw new Error("Output directory is not defined");
-	}
-
 	log(`Processing knoxctl results from directory: ${outputDir}`);
+
+	if (!fs.existsSync(outputDir)) {
+		log(`Output directory does not exist: ${outputDir}`, "error");
+		return;
+	}
 
 	if (!IS_GITHUB_ACTIONS) {
 		log(
 			"Running in local environment. Results will be displayed in the console.",
 			"warning",
 		);
-	}
-
-	if (!fs.existsSync(outputDir)) {
-		log(`Output directory does not exist: ${outputDir}`, "error");
-		return;
 	}
 
 	processResultFile(outputDir, NETWORK_EVENTS_PREFIX, "Network Events");
@@ -125,9 +122,7 @@ function processResults(): void {
 async function run(): Promise<void> {
 	try {
 		stopKnoxctlScan();
-
 		await new Promise((resolve) => setTimeout(resolve, 6000));
-
 		processResults();
 		if (IS_GITHUB_ACTIONS) {
 			await core.summary.write();
