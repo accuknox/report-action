@@ -42,19 +42,68 @@ async function downloadKubeArmor(version: string): Promise<string> {
 	return new Promise((resolve, reject) => {
 		https
 			.get(url, (res) => {
+				if (res.statusCode !== 200) {
+					reject(
+						new Error(
+							`Failed to download: ${res.statusCode} ${res.statusMessage}`,
+						),
+					);
+					return;
+				}
+
+				const fileSize = Number.parseInt(
+					res.headers["content-length"] || "0",
+					10,
+				);
+				let downloadedSize = 0;
+
 				const writeStream = fs.createWriteStream(filePath);
 				res.pipe(writeStream);
+
+				res.on("data", (chunk) => {
+					downloadedSize += chunk.length;
+					log(`Downloaded ${downloadedSize} of ${fileSize} bytes`);
+				});
+
 				writeStream.on("finish", () => {
 					writeStream.close();
-					resolve(filePath);
+					if (downloadedSize === fileSize) {
+						log(`Download completed: ${filePath}`);
+						resolve(filePath);
+					} else {
+						reject(
+							new Error(
+								`Download incomplete: ${downloadedSize}/${fileSize} bytes`,
+							),
+						);
+					}
 				});
 			})
-			.on("error", reject);
+			.on("error", (err) => {
+				fs.unlink(filePath, () => {});
+				reject(err);
+			});
 	});
 }
 
 async function installKubeArmor(filePath: string): Promise<void> {
-	await exec.exec(`sudo apt --no-install-recommends install -y ${filePath}`);
+	await exec.exec("sudo apt update");
+
+	try {
+		await exec.exec(`sudo dpkg -i ${filePath}`);
+	} catch (error) {
+		log("dpkg installation failed, attempting to fix broken dependencies...");
+		await exec.exec("sudo apt-get install -f");
+
+		await exec.exec(`sudo dpkg -i ${filePath}`);
+	}
+
+	const result = await exec.exec("dpkg -s kubearmor", [], {
+		ignoreReturnCode: true,
+	});
+	if (result !== 0) {
+		throw new Error("KubeArmor installation verification failed");
+	}
 }
 
 async function installKnoxctl(): Promise<void> {
@@ -152,9 +201,9 @@ async function run(): Promise<void> {
 		await runKnoxctlScan();
 	} catch (error) {
 		if (error instanceof Error) {
-			core.setFailed(error.message);
+			core.setFailed(`Error: ${error.message}\nStack: ${error.stack}`);
 		} else {
-			core.setFailed("An unknown error occurred");
+			core.setFailed(`An unknown error occurred: ${error}`);
 		}
 	}
 }
