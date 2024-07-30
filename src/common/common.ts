@@ -37,7 +37,7 @@ export function getPidFilePath(): string {
 
 export function getOutputDir(): string {
 	return WORKSPACE
-		? WORKSPACE
+		? path.join(WORKSPACE, RESULTS_DIR_NAME)
 		: path.join(__dirname, "..", "..", RESULTS_DIR_NAME);
 }
 
@@ -51,11 +51,9 @@ export function mockCoreForLocalTesting(): void {
 			};
 			return inputs[name] || "";
 		};
-
 		(core as CoreMock).getBooleanInput = (name: string): boolean => {
 			return (core as CoreMock).getInput(name) === "true";
 		};
-
 		(core as CoreMock).setFailed = console.error;
 	}
 }
