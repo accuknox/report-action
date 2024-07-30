@@ -142,9 +142,12 @@ async function runKnoxctlScan(): Promise<void> {
 		}
 	}
 
+	// Ensure the output directory exists
 	if (!fs.existsSync(outputDir)) {
 		log(`Creating output directory: ${outputDir}`);
 		fs.mkdirSync(outputDir, { recursive: true });
+	} else {
+		log(`Output directory already exists: ${outputDir}`);
 	}
 
 	const commandString = command.join(" ");

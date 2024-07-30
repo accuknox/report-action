@@ -16,26 +16,44 @@ function stopKnoxctlScan(): void {
 	const pidFile = getPidFilePath();
 
 	if (fs.existsSync(pidFile)) {
-		const pid = fs.readFileSync(pidFile, ENCODING).toString();
-		log(`Stopping knoxctl scan process with PID: ${pid}`);
+		const pid = fs.readFileSync(pidFile, ENCODING).trim();
+		log(`Attempting to stop knoxctl scan process with PID: ${pid}`);
 
 		try {
-			process.kill(Number.parseInt(pid), "SIGINT");
-			log("knoxctl scan process stopped successfully");
-		} catch (error) {
-			log("Failed to stop knoxctl scan process:", "error");
-			log(error instanceof Error ? error.message : String(error), "error");
-		}
+			process.kill(Number(pid), "SIGINT");
+			log("Sent SIGINT signal to knoxctl scan process");
 
-		fs.unlinkSync(pidFile);
+			setTimeout(() => {
+				try {
+					process.kill(Number(pid), 0);
+					log("Process is still running. Attempting to force kill...");
+					process.kill(Number(pid), "SIGKILL");
+				} catch (error) {
+					log("knoxctl scan process has been terminated");
+				}
+
+				fs.unlinkSync(pidFile);
+				log("Removed PID file");
+			}, 5000);
+		} catch (error) {
+			log(
+				`Failed to stop knoxctl scan process: ${error instanceof Error ? error.message : String(error)}`,
+				"error",
+			);
+		}
 	} else {
-		log("No knoxctl scan PID file found");
+		log(
+			"No knoxctl scan PID file found. The process may have already completed.",
+		);
 	}
 }
 
 function getLatestFile(directory: string, prefix: string): string | null {
-	const files = fs
-		.readdirSync(directory)
+	log(`Searching for files with prefix "${prefix}" in directory: ${directory}`);
+	const files = fs.readdirSync(directory);
+	log(`Files in directory: ${files.join(", ")}`);
+
+	const matchingFiles = files
 		.filter((file) => file.startsWith(prefix) && file.endsWith(".md"))
 		.map((file) => ({
 			name: file,
@@ -43,7 +61,8 @@ function getLatestFile(directory: string, prefix: string): string | null {
 		}))
 		.sort((a, b) => b.time - a.time);
 
-	return files.length > 0 ? files[0].name : null;
+	log(`Matching files: ${matchingFiles.map((f) => f.name).join(", ")}`);
+	return matchingFiles.length > 0 ? matchingFiles[0].name : null;
 }
 
 function addToSummary(content: string): void {
@@ -61,27 +80,36 @@ function processResultFile(
 ): void {
 	const file = getLatestFile(outputDir, prefix);
 	if (file) {
-		const content = fs.readFileSync(path.join(outputDir, file), ENCODING);
+		const filePath = path.join(outputDir, file);
+		log(`Processing ${title} file: ${filePath}`);
+		const content = fs.readFileSync(filePath, ENCODING);
 		addToSummary(`## ${title}\n\n${content}`);
 	} else {
-		log(`No ${title.toLowerCase()} file found`);
+		log(
+			`No ${title.toLowerCase()} file found with prefix ${prefix} in ${outputDir}`,
+		);
 	}
 }
 
 function processResults(): void {
-	const outputDir = getOutputDir();
+	const outputDir = path.resolve(getOutputDir());
 
 	if (!outputDir) {
 		throw new Error("Output directory is not defined");
 	}
 
-	log("Processing knoxctl results");
+	log(`Processing knoxctl results from directory: ${outputDir}`);
 
 	if (!IS_GITHUB_ACTIONS) {
 		log(
 			"Running in local environment. Results will be displayed in the console.",
 			"warning",
 		);
+	}
+
+	if (!fs.existsSync(outputDir)) {
+		log(`Output directory does not exist: ${outputDir}`, "error");
+		return;
 	}
 
 	processResultFile(outputDir, NETWORK_EVENTS_PREFIX, "Network Events");
@@ -97,6 +125,9 @@ function processResults(): void {
 async function run(): Promise<void> {
 	try {
 		stopKnoxctlScan();
+
+		await new Promise((resolve) => setTimeout(resolve, 6000));
+
 		processResults();
 		if (IS_GITHUB_ACTIONS) {
 			await core.summary.write();
