@@ -39,51 +39,23 @@ async function downloadKubeArmor(version: string): Promise<string> {
 	const url = `https://github.com/kubearmor/KubeArmor/releases/download/v${version}/kubearmor_${version}_linux-amd64.deb`;
 	const filePath = `./kubearmor_${version}_linux-amd64.deb`;
 
-	return new Promise((resolve, reject) => {
-		https
-			.get(url, (res) => {
-				if (res.statusCode !== 200) {
-					reject(
-						new Error(
-							`Failed to download: ${res.statusCode} ${res.statusMessage}`,
-						),
-					);
-					return;
-				}
+	try {
+		await exec.exec("curl", ["-L", "-o", filePath, url]);
 
-				const fileSize = Number.parseInt(
-					res.headers["content-length"] || "0",
-					10,
-				);
-				let downloadedSize = 0;
+		if (fs.existsSync(filePath)) {
+			const stats = fs.statSync(filePath);
+			log(`Downloaded KubeArmor (${stats.size} bytes) to: ${filePath}`);
+			return filePath;
+		}
 
-				const writeStream = fs.createWriteStream(filePath);
-				res.pipe(writeStream);
-
-				res.on("data", (chunk) => {
-					downloadedSize += chunk.length;
-					log(`Downloaded ${downloadedSize} of ${fileSize} bytes`);
-				});
-
-				writeStream.on("finish", () => {
-					writeStream.close();
-					if (downloadedSize === fileSize) {
-						log(`Download completed: ${filePath}`);
-						resolve(filePath);
-					} else {
-						reject(
-							new Error(
-								`Download incomplete: ${downloadedSize}/${fileSize} bytes`,
-							),
-						);
-					}
-				});
-			})
-			.on("error", (err) => {
-				fs.unlink(filePath, () => {});
-				reject(err);
-			});
-	});
+		throw new Error(
+			`Failed to download KubeArmor: File not found at ${filePath}`,
+		);
+	} catch (error) {
+		throw new Error(
+			`Failed to download KubeArmor: ${error instanceof Error ? error.message : String(error)}`,
+		);
+	}
 }
 
 async function installKubeArmor(filePath: string): Promise<void> {
