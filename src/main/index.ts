@@ -79,31 +79,33 @@ async function installKubeArmor(filePath: string): Promise<void> {
 }
 
 async function installKnoxctl(): Promise<void> {
-    const installScript = 'knoxctl_install.sh';
-    const installCmd = `https://knoxctl.accuknox.com/install.sh`;
+	const installScript = "knoxctl_install.sh";
+	const installCmd = "https://knoxctl.accuknox.com/install.sh";
 
-    try {
-        log('Downloading knoxctl installation script...');
-        await exec.exec('curl', ['-sfL', '-o', installScript, installCmd]);
+	try {
+		log("Downloading knoxctl installation script...");
+		await exec.exec("curl", ["-sfL", "-o", installScript, installCmd]);
 
-        if (!fs.existsSync(installScript)) {
-            throw new Error('Failed to download knoxctl installation script');
-        }
+		if (!fs.existsSync(installScript)) {
+			throw new Error("Failed to download knoxctl installation script");
+		}
 
-        await exec.exec('chmod', ['+x', installScript]);
+		await exec.exec("chmod", ["+x", installScript]);
 
-        log('Running knoxctl installation script...');
-        await exec.exec(`sudo ./${installScript}`, ['-b', '/usr/local/bin']);
+		log("Running knoxctl installation script...");
+		await exec.exec(`sudo ./${installScript}`, ["-b", "/usr/local/bin"]);
 
-        log('Verifying knoxctl installation...');
-        await exec.exec('knoxctl', ['version']);
+		log("Verifying knoxctl installation...");
+		await exec.exec("knoxctl", ["version"]);
 
-        fs.unlinkSync(installScript);
+		fs.unlinkSync(installScript);
 
-        log('knoxctl installed successfully');
-    } catch (error) {
-        throw new Error(`Failed to install knoxctl: ${error instanceof Error ? error.message : String(error)}`);
-    }
+		log("knoxctl installed successfully");
+	} catch (error) {
+		throw new Error(
+			`Failed to install knoxctl: ${error instanceof Error ? error.message : String(error)}`,
+		);
+	}
 }
 
 async function startKubeArmor(): Promise<void> {
