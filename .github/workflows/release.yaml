@@ -35,7 +35,7 @@ jobs:
         git checkout ${{ github.ref_name }}  # Checkout the specific release tag
         git add --force dist
         git commit -m "[bot] Add compiled JS for release ${{ github.ref_name }}"
-        git push origin ${{ github.ref_name }}  # Push to the tag and not to main, this helps to keep track of releases
+        git push origin HEAD:${{ github.ref_name }}  # Push to the tag and not to main, this helps to keep track of releases
 
     - name: Handle build failure
       if: steps.build.outcome != 'success'
