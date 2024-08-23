@@ -12,11 +12,11 @@ import {
 	mockCoreForLocalTesting,
 } from "@common/common";
 
-async function getLatestKubeArmorVersion(): Promise<string> {
+async function getLatestVersion(repo: string): Promise<string> {
 	return new Promise((resolve, reject) => {
 		https
 			.get(
-				"https://api.github.com/repos/kubearmor/KubeArmor/releases/latest",
+				`https://api.github.com/repos/${repo}/releases/latest`,
 				{
 					headers: { "User-Agent": "GitHub-Action" },
 				},
@@ -78,7 +78,7 @@ async function installKubeArmor(filePath: string): Promise<void> {
 	}
 }
 
-async function installKnoxctl(): Promise<void> {
+async function installKnoxctl(version?: string): Promise<void> {
 	const installScript = "knoxctl_install.sh";
 	const installCmd = "https://knoxctl.accuknox.com/install.sh";
 
@@ -93,7 +93,11 @@ async function installKnoxctl(): Promise<void> {
 		await exec.exec("chmod", ["+x", installScript]);
 
 		log("Running knoxctl installation script...");
-		await exec.exec(`sudo ./${installScript}`, ["-b", "/usr/local/bin"]);
+		const installArgs = ["-b", "/usr/local/bin"];
+		if (version) {
+			installArgs.push("-v", version);
+		}
+		await exec.exec(`sudo ./${installScript}`, installArgs);
 
 		log("Verifying knoxctl installation...");
 		await exec.exec("knoxctl", ["version"]);
@@ -119,6 +123,23 @@ async function runKnoxctlScan(): Promise<void> {
 		{ name: "system", flag: "--system", type: "boolean" },
 		{ name: "output", flag: "--output", type: "string" },
 	];
+
+	const policyAction = core.getInput("policy_action").toLowerCase();
+	if (policyAction !== "audit" && policyAction !== "block") {
+		throw new Error(
+			"Invalid policy_action. Must be either 'Audit' or 'Block'.",
+		);
+	}
+
+	// Run the policy command first
+	await exec.exec("knoxctl", [
+		"scan",
+		"policy",
+		"--event",
+		"ADDED",
+		"--action",
+		policyAction,
+	]);
 
 	const command: string[] = ["knoxctl", "scan"];
 	let outputDir = getOutputDir();
@@ -180,10 +201,12 @@ async function run(): Promise<void> {
 				"Running in local test mode. Skipping KubeArmor and knoxctl installation.",
 			);
 		} else {
-			const version = await getLatestKubeArmorVersion();
-			log(`Latest KubeArmor version: ${version}`);
+			const kubeArmorVersion =
+				core.getInput("kubearmor_version") ||
+				(await getLatestVersion("kubearmor/KubeArmor"));
+			log(`Installing KubeArmor version: ${kubeArmorVersion}`);
 
-			const filePath = await downloadKubeArmor(version);
+			const filePath = await downloadKubeArmor(kubeArmorVersion);
 			log(`Downloaded KubeArmor to: ${filePath}`);
 
 			await installKubeArmor(filePath);
@@ -192,8 +215,11 @@ async function run(): Promise<void> {
 			await startKubeArmor();
 			log("KubeArmor started successfully");
 
-			await installKnoxctl();
-			log("Installed knoxctl binary");
+			const knoxctlVersion = core.getInput("knoxctl_version");
+			await installKnoxctl(knoxctlVersion);
+			log(
+				`Installed knoxctl${knoxctlVersion ? ` version ${knoxctlVersion}` : ""}`,
+			);
 		}
 
 		await runKnoxctlScan();

@@ -18,6 +18,16 @@ inputs:
     description: 'Output path for the files to be placed'
     required: false
     default: './knoxctl-results'
+  kubearmor_version:
+    description: 'KubeArmor version to install (default: latest)'
+    required: false
+  knoxctl_version:
+    description: 'knoxctl version to install (default: latest)'
+    required: false
+  policy_action:
+    description: 'Policy action (Audit or Block)'
+    required: false
+    default: 'Audit'
 
 runs:
   using: 'node20'
