@@ -124,12 +124,15 @@ async function runKnoxctlScan(): Promise<void> {
 		{ name: "output", flag: "--output", type: "string" },
 	];
 
-	const policyAction = core.getInput("policy_action").toLowerCase();
+	let policyAction = core.getInput("policy_action").toLowerCase();
 	if (policyAction !== "audit" && policyAction !== "block") {
 		throw new Error(
 			"Invalid policy_action. Must be either 'Audit' or 'Block'.",
 		);
 	}
+
+	// Capitalize the first letter
+	policyAction = policyAction.charAt(0).toUpperCase() + policyAction.slice(1);
 
 	// Run the policy command first
 	await exec.exec("knoxctl", [
