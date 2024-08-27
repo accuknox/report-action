@@ -1,7 +1,7 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
-import * as core from "@actions/core";
 import * as artifact from "@actions/artifact";
+import * as core from "@actions/core";
 import {
 	ENCODING,
 	IS_GITHUB_ACTIONS,
@@ -130,7 +130,7 @@ async function run(): Promise<void> {
 		stopKnoxctlScan();
 		await new Promise((resolve) => setTimeout(resolve, 6000));
 		processResults();
-		
+
 		const outputDir = getOutputDir();
 		await uploadArtifacts(outputDir);
 
@@ -148,25 +148,37 @@ async function run(): Promise<void> {
 }
 
 async function uploadArtifacts(outputDir: string): Promise<void> {
-    if (!IS_GITHUB_ACTIONS) {
-        log("Running in local environment. Artifact upload is skipped.", "warning");
-        return;
-    }
+	if (!IS_GITHUB_ACTIONS) {
+		log("Running in local environment. Artifact upload is skipped.", "warning");
+		return;
+	}
 
-    const artifactClient = artifact.create();
-    const artifactName = "knoxctl-scan-results";
-    const files = fs.readdirSync(outputDir).map(file => path.join(outputDir, file));
+	const artifactClient = artifact.create();
+	const artifactName = "knoxctl-scan-results";
+	const files = fs
+		.readdirSync(outputDir)
+		.map((file) => path.join(outputDir, file));
 
-    log(`Uploading ${files.length} files as artifacts`)
+	log(`Uploading ${files.length} files as artifacts`);
 
-    	try {
-		const uploadResult = await artifactClient.uploadArtifact(artifactName, files, outputDir, {
-			continueOnError: false
-		});
+	try {
+		const uploadResult = await artifactClient.uploadArtifact(
+			artifactName,
+			files,
+			outputDir,
+			{
+				continueOnError: false,
+			},
+		);
 
-		log(`Artifact upload result: ${uploadResult.artifactName} (${uploadResult.size} bytes)`);
+		log(
+			`Artifact upload result: ${uploadResult.artifactName} (${uploadResult.size} bytes)`,
+		);
 	} catch (error) {
-		log(`Failed to upload artifacts: ${error instanceof Error ? error.message : String(error)}`, "error");
+		log(
+			`Failed to upload artifacts: ${error instanceof Error ? error.message : String(error)}`,
+			"error",
+		);
 	}
 }
 
