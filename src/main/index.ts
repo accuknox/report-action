@@ -95,7 +95,9 @@ async function installKnoxctl(version?: string): Promise<void> {
 		log("Running knoxctl installation script...");
 		const installArgs = ["-b", "/usr/local/bin"];
 		if (version) {
-			installArgs.push("-v", version);
+			// Prepend 'v' to the version if it's not already there
+			const versionArg = version.startsWith("v") ? version : `v${version}`;
+			installArgs.push(versionArg);
 		}
 		await exec.exec(`sudo ./${installScript}`, installArgs);
 
