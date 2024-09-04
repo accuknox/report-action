@@ -14,10 +14,6 @@ inputs:
     description: 'Scan for only system events'
     required: false
     default: 'false'
-  output:
-    description: 'Output path for the files to be placed'
-    required: false
-    default: './knoxctl-results'
   kubearmor_version:
     description: 'KubeArmor version to install (default: latest)'
     required: false
@@ -28,6 +24,24 @@ inputs:
     description: 'Policy action (Audit or Block)'
     required: false
     default: 'Audit'
+  dryrun:
+    description: 'Generate hardening security policies, but do not apply them'
+    required: false
+    default: 'false'
+  strict:
+    description: 'Apply all the hardening policies (this might generate a lot of alerts)'
+    required: false
+    default: 'false'
+  policies:
+    description: 'Path to user defined policies'
+    required: false
+  ignore-alerts:
+    description: 'Ignore alerts (file, network or process)'
+    required: false
+  min-severity:
+    description: 'Set the minimum severity level (1-10)'
+    required: false
+
 
 runs:
   using: 'node20'

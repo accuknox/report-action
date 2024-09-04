@@ -124,6 +124,8 @@ async function runKnoxctlScan(): Promise<void> {
 		{ name: "all", flag: "--all", type: "boolean" },
 		{ name: "system", flag: "--system", type: "boolean" },
 		{ name: "output", flag: "--output", type: "string" },
+		{ name: "ignore-alerts", flag: "--ignore-alerts", type: "string" },
+		{ name: "min-severity", flag: "--min-severity", type: "string" },
 	];
 
 	let policyAction = core.getInput("policy_action").toLowerCase();
@@ -136,17 +138,37 @@ async function runKnoxctlScan(): Promise<void> {
 	// Capitalize the first letter
 	policyAction = policyAction.charAt(0).toUpperCase() + policyAction.slice(1);
 
-	// Run the policy command first
-	await exec.exec("knoxctl", [
+	// Prepare policy command options
+	const policyCommand = [
+		"knoxctl",
 		"scan",
 		"policy",
 		"--event",
 		"ADDED",
 		"--action",
 		policyAction,
-	]);
+	];
 
-	const command: string[] = ["knoxctl", "scan"];
+	// Add new policy options
+	const dryrun = core.getBooleanInput("dryrun");
+	if (dryrun) {
+		policyCommand.push("--dryrun");
+	}
+
+	const strict = core.getBooleanInput("strict");
+	if (strict) {
+		policyCommand.push("--strict");
+	}
+
+	const policies = core.getInput("policies");
+	if (policies) {
+		policyCommand.push("--policies", policies);
+	}
+
+	// Run the policy command first
+	await exec.exec(policyCommand[0], policyCommand.slice(1));
+
+	const scanCommand: string[] = ["knoxctl", "scan"];
 	let outputDir = getOutputDir();
 
 	for (const option of knoxctlOptions) {
@@ -155,7 +177,7 @@ async function runKnoxctlScan(): Promise<void> {
 		if (option.type === "boolean") {
 			value = core.getBooleanInput(option.name);
 			if (value) {
-				command.push(option.flag);
+				scanCommand.push(option.flag);
 			}
 		} else if (option.type === "string") {
 			value = core.getInput(option.name);
@@ -163,7 +185,7 @@ async function runKnoxctlScan(): Promise<void> {
 				if (option.name === "output") {
 					outputDir = value;
 				}
-				command.push(option.flag, value);
+				scanCommand.push(option.flag, value);
 			}
 		}
 	}
@@ -176,13 +198,17 @@ async function runKnoxctlScan(): Promise<void> {
 		log(`Output directory already exists: ${outputDir}`);
 	}
 
-	const commandString = command.join(" ");
+	const commandString = scanCommand.join(" ");
 	log(`Executing command: ${commandString}`);
 
-	const scanProcess: ChildProcess = spawn(command[0], command.slice(1), {
-		stdio: "inherit",
-		detached: true,
-	});
+	const scanProcess: ChildProcess = spawn(
+		scanCommand[0],
+		scanCommand.slice(1),
+		{
+			stdio: "inherit",
+			detached: true,
+		},
+	);
 
 	log(`knoxctl scan started with PID: ${scanProcess.pid}`);
 
