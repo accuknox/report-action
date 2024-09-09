@@ -212,7 +212,7 @@ async function run(): Promise<void> {
 		// Increase wait time and add file system sync
 		await new Promise((resolve) => setTimeout(resolve, 15000));
 		fs.readdirSync(getOutputDir()); // Force a file system sync
-		
+
 		// List contents of current working directory
 		const currentDir = process.cwd();
 		log(`Current working directory: ${currentDir}`);
