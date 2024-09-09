@@ -123,7 +123,6 @@ async function runKnoxctlScan(): Promise<void> {
 	const knoxctlOptions = [
 		{ name: "all", flag: "--all", type: "boolean" },
 		{ name: "system", flag: "--system", type: "boolean" },
-		{ name: "output", flag: "--output", type: "string" },
 		{ name: "ignore-alerts", flag: "--ignore-alerts", type: "string" },
 		{ name: "min-severity", flag: "--min-severity", type: "string" },
 	];
@@ -165,11 +164,12 @@ async function runKnoxctlScan(): Promise<void> {
 		policyCommand.push("--policies", policies);
 	}
 
-	// Run the policy command first
 	await exec.exec(policyCommand[0], policyCommand.slice(1));
 
 	const scanCommand: string[] = ["knoxctl", "scan"];
-	let outputDir = getOutputDir();
+	const outputDir = path.join(getOutputDir(), "knoxctl-results");
+
+	scanCommand.push("--output", outputDir);
 
 	for (const option of knoxctlOptions) {
 		let value: boolean | string;
@@ -182,15 +182,11 @@ async function runKnoxctlScan(): Promise<void> {
 		} else if (option.type === "string") {
 			value = core.getInput(option.name);
 			if (value) {
-				if (option.name === "output") {
-					outputDir = value;
-				}
 				scanCommand.push(option.flag, value);
 			}
 		}
 	}
 
-	// Ensure the output directory exists
 	if (!fs.existsSync(outputDir)) {
 		log(`Creating output directory: ${outputDir}`);
 		fs.mkdirSync(outputDir, { recursive: true });
