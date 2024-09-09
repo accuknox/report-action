@@ -149,7 +149,6 @@ function getLatestFile(directory: string, prefix: string): string | null {
 	return matchingFiles.length > 0 ? matchingFiles[0].name : null;
 }
 
-
 async function processResultFile(
 	outputDir: string,
 	prefix: string,
@@ -212,7 +211,7 @@ async function run(): Promise<void> {
 
 		// Increase wait time and add file system sync
 		await new Promise((resolve) => setTimeout(resolve, 15000));
-		
+
 		const outputDir = getOutputDir();
 		log(`Output directory: ${outputDir}`);
 		log("Contents of output directory:");
