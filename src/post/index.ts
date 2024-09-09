@@ -208,10 +208,21 @@ async function processResults(): Promise<void> {
 async function run(): Promise<void> {
 	try {
 		stopKnoxctlScan();
-		await new Promise((resolve) => setTimeout(resolve, 9000));
-		await processResults();
+
+		// Increase wait time and add file system sync
+		await new Promise((resolve) => setTimeout(resolve, 15000));
+		fs.readdirSync(getOutputDir()); // Force a file system sync
 
 		const outputDir = getOutputDir();
+		log(`Output directory: ${outputDir}`);
+		log("Contents of output directory:");
+		const files = fs.readdirSync(outputDir);
+		for (const file of files) {
+			log(`- ${file}`);
+		}
+
+		await processResults();
+
 		await uploadArtifacts(outputDir);
 
 		if (IS_GITHUB_ACTIONS) {
