@@ -212,13 +212,38 @@ async function run(): Promise<void> {
 		// Increase wait time and add file system sync
 		await new Promise((resolve) => setTimeout(resolve, 15000));
 		fs.readdirSync(getOutputDir()); // Force a file system sync
+		
+		// List contents of current working directory
+		const currentDir = process.cwd();
+		log(`Current working directory: ${currentDir}`);
+		log("Contents of current working directory:");
+		const currentDirFiles = fs.readdirSync(currentDir);
+		for (const file of currentDirFiles) {
+			const filePath = path.join(currentDir, file);
+			const stats = fs.statSync(filePath);
+			if (stats.isDirectory()) {
+				log(`- [DIR] ${file}`);
+				// List contents of subdirectories
+				const subDirFiles = fs.readdirSync(filePath);
+				for (const subFile of subDirFiles) {
+					log(`  - ${subFile}`);
+				}
+			} else {
+				log(`- ${file}`);
+			}
+		}
 
+		// List contents of expected output directory
 		const outputDir = getOutputDir();
-		log(`Output directory: ${outputDir}`);
-		log("Contents of output directory:");
-		const files = fs.readdirSync(outputDir);
-		for (const file of files) {
-			log(`- ${file}`);
+		log(`\nExpected output directory: ${outputDir}`);
+		log("Contents of expected output directory:");
+		if (fs.existsSync(outputDir)) {
+			const outputDirFiles = fs.readdirSync(outputDir);
+			for (const file of outputDirFiles) {
+				log(`- ${file}`);
+			}
+		} else {
+			log("Output directory does not exist.");
 		}
 
 		await processResults();
