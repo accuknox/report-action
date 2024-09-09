@@ -169,8 +169,6 @@ async function runKnoxctlScan(): Promise<void> {
 	const scanCommand: string[] = ["knoxctl", "scan"];
 	const outputDir = path.join(getOutputDir(), "knoxctl-results");
 
-	scanCommand.push("--output", outputDir);
-
 	for (const option of knoxctlOptions) {
 		let value: boolean | string;
 

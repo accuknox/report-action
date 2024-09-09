@@ -36,9 +36,7 @@ export function getPidFilePath(): string {
 }
 
 export function getOutputDir(): string {
-	return WORKSPACE
-		? path.join(WORKSPACE, RESULTS_DIR_NAME)
-		: path.join(__dirname, "..", "..", RESULTS_DIR_NAME);
+	return WORKSPACE || process.cwd();
 }
 
 export function mockCoreForLocalTesting(): void {

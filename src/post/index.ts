@@ -149,6 +149,7 @@ function getLatestFile(directory: string, prefix: string): string | null {
 	return matchingFiles.length > 0 ? matchingFiles[0].name : null;
 }
 
+
 async function processResultFile(
 	outputDir: string,
 	prefix: string,
@@ -211,11 +212,19 @@ async function run(): Promise<void> {
 
 		// Increase wait time and add file system sync
 		await new Promise((resolve) => setTimeout(resolve, 15000));
-		fs.readdirSync(getOutputDir()); // Force a file system sync
+		
+		const outputDir = getOutputDir();
+		log(`Output directory: ${outputDir}`);
+		log("Contents of output directory:");
+		const files = fs.readdirSync(outputDir);
+		for (const file of files) {
+			if (file.startsWith("knoxctl_scan_")) {
+				log(`- ${file}`);
+			}
+		}
 
 		await processResults();
 
-		const outputDir = getOutputDir();
 		await uploadArtifacts(outputDir);
 
 		if (IS_GITHUB_ACTIONS) {
@@ -241,6 +250,7 @@ async function uploadArtifacts(outputDir: string): Promise<void> {
 	const artifactName = "knoxctl-scan-results";
 	const files = fs
 		.readdirSync(outputDir)
+		.filter((file) => file.startsWith("knoxctl_scan_"))
 		.map((file) => path.join(outputDir, file));
 
 	log(`Uploading ${files.length} files as artifacts`);
