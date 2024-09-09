@@ -215,6 +215,7 @@ async function run(): Promise<void> {
 
 		await processResults();
 
+		const outputDir = getOutputDir();
 		await uploadArtifacts(outputDir);
 
 		if (IS_GITHUB_ACTIONS) {
