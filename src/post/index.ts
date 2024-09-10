@@ -117,7 +117,11 @@ function stopKnoxctlScan(): void {
 				// Change ownership of output files
 				const outputDir = getOutputDir();
 				exec
-					.exec(`sudo chown -R $(id -u):$(id -g) ${outputDir}`)
+					.exec("sudo", [
+						"sh",
+						"-c",
+						`chown -R $(id -u):$(id -g) "${outputDir}"`,
+					])
 					.then(() => {
 						log("Changed ownership of output files");
 					})
