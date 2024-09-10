@@ -234,7 +234,7 @@ async function run(): Promise<void> {
 	try {
 		await new Promise<void>((resolve) => {
 			stopKnoxctlScan();
-			setTimeout(resolve, 5000);
+			setTimeout(resolve, 10000);
 		});
 
 		const outputDir = getOutputDir();
