@@ -41,6 +41,10 @@ inputs:
   min-severity:
     description: 'Set the minimum severity level (1-10)'
     required: false
+  detailed-view:
+    description: 'Enable/disable detailed view in final report'
+    required: false
+    default: 'true'
 
 
 runs:
