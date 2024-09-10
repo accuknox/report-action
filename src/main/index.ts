@@ -166,10 +166,9 @@ async function runKnoxctlScan(): Promise<void> {
 		policyCommand.push("--policies", policies);
 	}
 
-	// Execute policy command
 	await exec.exec(policyCommand[0], policyCommand.slice(1));
 
-	const scanCommand = ["sudo", "knoxctl", "scan"];
+	const scanCommand: string[] = ["sudo", "knoxctl", "scan"];
 	const outputDir = path.join(getOutputDir(), "knoxctl-results");
 
 	for (const option of knoxctlOptions) {
@@ -198,15 +197,26 @@ async function runKnoxctlScan(): Promise<void> {
 	const commandString = scanCommand.join(" ");
 	log(`Executing command: ${commandString}`);
 
-	try {
-		await exec.exec(scanCommand[0], scanCommand.slice(1));
-	} catch (error) {
-		throw new Error(
-			`Failed to run knoxctl scan: ${error instanceof Error ? error.message : String(error)}`,
-		);
-	}
+	const scanProcess: ChildProcess = spawn(
+		scanCommand[0],
+		scanCommand.slice(1),
+		{
+			stdio: "inherit",
+			detached: true,
+		},
+	);
 
-	log("knoxctl scan completed successfully");
+	log(`knoxctl scan started with PID: ${scanProcess.pid}`);
+
+	const pidFile = getPidFilePath();
+	fs.writeFileSync(pidFile, scanProcess.pid?.toString() ?? "");
+
+	scanProcess.unref();
+
+	log(`knoxctl scan PID written to ${pidFile}`);
+	log(
+		"knoxctl scan is running in the background. Use the post script to stop it.",
+	);
 }
 
 async function run(): Promise<void> {
