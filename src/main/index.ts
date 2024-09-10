@@ -120,101 +120,123 @@ async function startKubeArmor(): Promise<void> {
 }
 
 async function runKnoxctlScan(): Promise<void> {
-	const knoxctlOptions = [
-		{ name: "all", flag: "--all", type: "boolean" },
-		{ name: "system", flag: "--system", type: "boolean" },
-		{ name: "ignore-alerts", flag: "--ignore-alerts", type: "string" },
-		{ name: "min-severity", flag: "--min-severity", type: "string" },
-	];
+    const knoxctlOptions = [
+        { name: "all", flag: "--all", type: "boolean" },
+        { name: "system", flag: "--system", type: "boolean" },
+        { name: "detailed-view", flag: "--detailed-view", type: "boolean" },
+        { name: "ignore-alerts", flag: "--ignore-alerts", type: "string" },
+        { name: "min-severity", flag: "--min-severity", type: "string" },
+    ];
 
-	let policyAction = core.getInput("policy_action").toLowerCase();
-	if (policyAction !== "audit" && policyAction !== "block") {
-		throw new Error(
-			"Invalid policy_action. Must be either 'Audit' or 'Block'.",
-		);
-	}
+    let policyAction = core.getInput("policy_action").toLowerCase();
+    if (policyAction !== "audit" && policyAction !== "block") {
+        throw new Error(
+            "Invalid policy_action. Must be either 'Audit' or 'Block'.",
+        );
+    }
 
-	// Capitalize the first letter
-	policyAction = policyAction.charAt(0).toUpperCase() + policyAction.slice(1);
+    // Capitalize the first letter
+    policyAction = policyAction.charAt(0).toUpperCase() + policyAction.slice(1);
 
-	// Prepare policy command options
-	const policyCommand = [
-		"knoxctl",
-		"scan",
-		"policy",
-		"--event",
-		"ADDED",
-		"--action",
-		policyAction,
-	];
+    // Prepare policy command options
+    const policyCommand = [
+        "knoxctl",
+        "scan",
+        "policy",
+        "--event",
+        "ADDED",
+        "--action",
+        policyAction,
+    ];
 
-	// Add new policy options
-	const dryrun = core.getBooleanInput("dryrun");
-	if (dryrun) {
-		policyCommand.push("--dryrun");
-	}
+    // Add new policy options
+    const dryrun = core.getBooleanInput("dryrun");
+    if (dryrun) {
+        policyCommand.push("--dryrun");
+    }
 
-	const strict = core.getBooleanInput("strict");
-	if (strict) {
-		policyCommand.push("--strict");
-	}
+    const strict = core.getBooleanInput("strict");
+    if (strict) {
+        policyCommand.push("--strict");
+    }
 
-	const policies = core.getInput("policies");
-	if (policies) {
-		policyCommand.push("--policies", policies);
-	}
+    const policies = core.getInput("policies");
+    if (policies) {
+        policyCommand.push("--policies", policies);
+    }
 
-	await exec.exec(policyCommand[0], policyCommand.slice(1));
+    await exec.exec(policyCommand[0], policyCommand.slice(1));
 
-	const scanCommand: string[] = ["knoxctl", "scan"];
-	const outputDir = path.join(getOutputDir(), "knoxctl-results");
+    const scanCommand: string[] = ["knoxctl", "scan"];
+    const outputDir = path.join(getOutputDir(), "knoxctl-results");
 
-	for (const option of knoxctlOptions) {
-		let value: boolean | string;
+    const detailedView = core.getBooleanInput("detailed-view");
 
-		if (option.type === "boolean") {
-			value = core.getBooleanInput(option.name);
-			if (value) {
-				scanCommand.push(option.flag);
-			}
-		} else if (option.type === "string") {
-			value = core.getInput(option.name);
-			if (value) {
-				scanCommand.push(option.flag, value);
-			}
-		}
-	}
+    for (const option of knoxctlOptions) {
+        let value: boolean | string;
 
-	if (!fs.existsSync(outputDir)) {
-		log(`Creating output directory: ${outputDir}`);
-		fs.mkdirSync(outputDir, { recursive: true });
-	} else {
-		log(`Output directory already exists: ${outputDir}`);
-	}
+        if (option.type === "boolean") {
+            value = core.getBooleanInput(option.name);
+            if (value) {
+                scanCommand.push(option.flag);
+            }
+        } else if (option.type === "string") {
+            value = core.getInput(option.name);
+            if (value) {
+                scanCommand.push(option.flag, value);
+            }
+        }
+    }
 
-	const commandString = scanCommand.join(" ");
-	log(`Executing command: ${commandString}`);
+    if (!fs.existsSync(outputDir)) {
+        log(`Creating output directory: ${outputDir}`);
+        fs.mkdirSync(outputDir, { recursive: true });
+    } else {
+        log(`Output directory already exists: ${outputDir}`);
+    }
 
-	const scanProcess: ChildProcess = spawn(
-		scanCommand[0],
-		scanCommand.slice(1),
-		{
-			stdio: "inherit",
-			detached: true,
-		},
-	);
+    const commandString = scanCommand.join(" ");
+    log(`Executing command: ${detailedView ? "sudo " : ""}${commandString}`);
 
-	log(`knoxctl scan started with PID: ${scanProcess.pid}`);
+    let scanProcess: ChildProcess;
 
-	const pidFile = getPidFilePath();
-	fs.writeFileSync(pidFile, scanProcess.pid?.toString() ?? "");
+    if (detailedView) {
+        // Check if we're running with sudo
+        const isRoot = process.getuid && process.getuid() === 0;
+        if (!isRoot) {
+            throw new Error("Detailed view requires sudo privileges. Please run the GitHub Actions workflow with sudo.");
+        }
 
-	scanProcess.unref();
+        scanProcess = spawn(
+            "sudo",
+            scanCommand,
+            {
+                stdio: "inherit",
+                detached: true,
+            },
+        );
+    } else {
+        scanProcess = spawn(
+            scanCommand[0],
+            scanCommand.slice(1),
+            {
+                stdio: "inherit",
+                detached: true,
+            },
+        );
+    }
 
-	log(`knoxctl scan PID written to ${pidFile}`);
-	log(
-		"knoxctl scan is running in the background. Use the post script to stop it.",
-	);
+    log(`knoxctl scan started with PID: ${scanProcess.pid}`);
+
+    const pidFile = getPidFilePath();
+    fs.writeFileSync(pidFile, scanProcess.pid?.toString() ?? "");
+
+    scanProcess.unref();
+
+    log(`knoxctl scan PID written to ${pidFile}`);
+    log(
+        "knoxctl scan is running in the background. Use the post script to stop it.",
+    );
 }
 
 async function run(): Promise<void> {
