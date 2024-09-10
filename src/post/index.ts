@@ -102,17 +102,29 @@ function stopKnoxctlScan(): void {
 		try {
 			process.kill(Number(pid), "SIGINT");
 			log("Sent SIGINT signal to knoxctl scan process");
-			setTimeout(() => {
-				try {
-					process.kill(Number(pid), 0);
-					log("Process is still running. Attempting to force kill...");
-					process.kill(Number(pid), "SIGKILL");
-				} catch (error) {
-					log("knoxctl scan process has been terminated");
-				}
-				fs.unlinkSync(pidFile);
-				log("Removed PID file");
-			}, 5000);
+			await new Promise((resolve) => setTimeout(resolve, 5000));
+			try {
+				process.kill(Number(pid), 0);
+				log("Process is still running. Attempting to force kill...");
+				process.kill(Number(pid), "SIGKILL");
+			} catch (error) {
+				log("knoxctl scan process has been terminated");
+			}
+			fs.unlinkSync(pidFile);
+			log("Removed PID file");
+
+			// Change permissions of output files
+			const outputDir = getOutputDir();
+			log(`Changing permissions of output files in ${outputDir}`);
+			try {
+				await exec.exec(`sudo chown -R $(id -u):$(id -g) ${outputDir}`);
+				log("Successfully changed ownership of output files");
+			} catch (error) {
+				log(
+					`Failed to change ownership of output files: ${error instanceof Error ? error.message : String(error)}`,
+					"warning",
+				);
+			}
 		} catch (error) {
 			log(
 				`Failed to stop knoxctl scan process: ${error instanceof Error ? error.message : String(error)}`,
