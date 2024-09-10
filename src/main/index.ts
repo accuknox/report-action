@@ -140,6 +140,7 @@ async function runKnoxctlScan(): Promise<void> {
 
 	// Prepare policy command options
 	const policyCommand = [
+		"sudo",
 		"knoxctl",
 		"scan",
 		"policy",
@@ -165,12 +166,11 @@ async function runKnoxctlScan(): Promise<void> {
 		policyCommand.push("--policies", policies);
 	}
 
+	// Execute policy command
 	await exec.exec(policyCommand[0], policyCommand.slice(1));
 
-	const scanCommand: string[] = ["knoxctl", "scan"];
+	const scanCommand = ["sudo", "knoxctl", "scan"];
 	const outputDir = path.join(getOutputDir(), "knoxctl-results");
-
-	const detailedView = core.getBooleanInput("detailed-view");
 
 	for (const option of knoxctlOptions) {
 		let value: boolean | string;
@@ -196,41 +196,17 @@ async function runKnoxctlScan(): Promise<void> {
 	}
 
 	const commandString = scanCommand.join(" ");
-	log(`Executing command: ${detailedView ? "sudo " : ""}${commandString}`);
+	log(`Executing command: ${commandString}`);
 
-	let scanProcess: ChildProcess;
-
-	if (detailedView) {
-		// Check if we're running with sudo
-		const isRoot = process.getuid && process.getuid() === 0;
-		if (!isRoot) {
-			throw new Error(
-				"Detailed view requires sudo privileges. Please run the GitHub Actions workflow with sudo.",
-			);
-		}
-
-		scanProcess = spawn("sudo", scanCommand, {
-			stdio: "inherit",
-			detached: true,
-		});
-	} else {
-		scanProcess = spawn(scanCommand[0], scanCommand.slice(1), {
-			stdio: "inherit",
-			detached: true,
-		});
+	try {
+		await exec.exec(scanCommand[0], scanCommand.slice(1));
+	} catch (error) {
+		throw new Error(
+			`Failed to run knoxctl scan: ${error instanceof Error ? error.message : String(error)}`,
+		);
 	}
 
-	log(`knoxctl scan started with PID: ${scanProcess.pid}`);
-
-	const pidFile = getPidFilePath();
-	fs.writeFileSync(pidFile, scanProcess.pid?.toString() ?? "");
-
-	scanProcess.unref();
-
-	log(`knoxctl scan PID written to ${pidFile}`);
-	log(
-		"knoxctl scan is running in the background. Use the post script to stop it.",
-	);
+	log("knoxctl scan completed successfully");
 }
 
 async function run(): Promise<void> {
