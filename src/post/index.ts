@@ -2,6 +2,7 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import * as artifact from "@actions/artifact";
 import * as core from "@actions/core";
+import * as exec from "@actions/exec";
 import {
 	ENCODING,
 	IS_GITHUB_ACTIONS,
@@ -102,29 +103,31 @@ function stopKnoxctlScan(): void {
 		try {
 			process.kill(Number(pid), "SIGINT");
 			log("Sent SIGINT signal to knoxctl scan process");
-			await new Promise((resolve) => setTimeout(resolve, 5000));
-			try {
-				process.kill(Number(pid), 0);
-				log("Process is still running. Attempting to force kill...");
-				process.kill(Number(pid), "SIGKILL");
-			} catch (error) {
-				log("knoxctl scan process has been terminated");
-			}
-			fs.unlinkSync(pidFile);
-			log("Removed PID file");
+			setTimeout(() => {
+				try {
+					process.kill(Number(pid), 0);
+					log("Process is still running. Attempting to force kill...");
+					process.kill(Number(pid), "SIGKILL");
+				} catch (error) {
+					log("knoxctl scan process has been terminated");
+				}
+				fs.unlinkSync(pidFile);
+				log("Removed PID file");
 
-			// Change permissions of output files
-			const outputDir = getOutputDir();
-			log(`Changing permissions of output files in ${outputDir}`);
-			try {
-				await exec.exec(`sudo chown -R $(id -u):$(id -g) ${outputDir}`);
-				log("Successfully changed ownership of output files");
-			} catch (error) {
-				log(
-					`Failed to change ownership of output files: ${error instanceof Error ? error.message : String(error)}`,
-					"warning",
-				);
-			}
+				// Change ownership of output files
+				const outputDir = getOutputDir();
+				exec
+					.exec(`sudo chown -R $(id -u):$(id -g) ${outputDir}`)
+					.then(() => {
+						log("Changed ownership of output files");
+					})
+					.catch((error) => {
+						log(
+							`Failed to change ownership of output files: ${error instanceof Error ? error.message : String(error)}`,
+							"warning",
+						);
+					});
+			}, 5000);
 		} catch (error) {
 			log(
 				`Failed to stop knoxctl scan process: ${error instanceof Error ? error.message : String(error)}`,
