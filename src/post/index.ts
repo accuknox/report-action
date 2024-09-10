@@ -103,7 +103,7 @@ function stopKnoxctlScan(): void {
 		try {
 			process.kill(Number(pid), "SIGINT");
 			log("Sent SIGINT signal to knoxctl scan process");
-			setTimeout(() => {
+			setTimeout(async () => {
 				try {
 					process.kill(Number(pid), 0);
 					log("Process is still running. Attempting to force kill...");
@@ -114,23 +114,29 @@ function stopKnoxctlScan(): void {
 				fs.unlinkSync(pidFile);
 				log("Removed PID file");
 
-				// Change ownership of output files
+				// Change permissions of output files
 				const outputDir = getOutputDir();
-				exec
-					.exec("sudo", [
-						"sh",
-						"-c",
-						`chown -R $(id -u):$(id -g) "${outputDir}"`,
-					])
-					.then(() => {
-						log("Changed ownership of output files");
-					})
-					.catch((error) => {
-						log(
-							`Failed to change ownership of output files: ${error instanceof Error ? error.message : String(error)}`,
-							"warning",
-						);
-					});
+				log(`Attempting to change permissions of files in: ${outputDir}`);
+				try {
+					await exec.exec("sudo", ["chmod", "-R", "644", outputDir]);
+					log("Changed permissions of output files");
+
+					// List directory contents to verify
+					const { stdout, stderr } = await exec.getExecOutput("ls", [
+						"-l",
+						outputDir,
+					]);
+					log("Directory contents after permission change:");
+					log(stdout);
+					if (stderr) {
+						log(`stderr: ${stderr}`, "warning");
+					}
+				} catch (error) {
+					log(
+						`Failed to change permissions of output files: ${error instanceof Error ? error.message : String(error)}`,
+						"error",
+					);
+				}
 			}, 5000);
 		} catch (error) {
 			log(
@@ -226,10 +232,10 @@ async function processResults(): Promise<void> {
 
 async function run(): Promise<void> {
 	try {
-		stopKnoxctlScan();
-
-		// Increase wait time and add file system sync
-		await new Promise((resolve) => setTimeout(resolve, 15000));
+		await new Promise<void>((resolve) => {
+			stopKnoxctlScan();
+			setTimeout(resolve, 5000);
+		});
 
 		const outputDir = getOutputDir();
 		log(`Output directory: ${outputDir}`);
