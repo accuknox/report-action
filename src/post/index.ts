@@ -19,6 +19,19 @@ const MAX_SUMMARY_SIZE = 1024 * 1024;
 const TRUNCATION_MESSAGE =
 	"\n\n... (content truncated due to size limits, please download artifacts) ...";
 
+async function sudoExec(command: string, args: string[] = []): Promise<string> {
+	let output = "";
+	const options: exec.ExecOptions = {
+		listeners: {
+			stdout: (data: Buffer) => {
+				output += data.toString();
+			},
+		},
+	};
+	await exec.exec("sudo", [command, ...args], options);
+	return output.trim();
+}
+
 function truncateContent(content: string, maxSize: number): string {
 	if (Buffer.byteLength(content, "utf8") <= maxSize) {
 		return content;
@@ -101,48 +114,51 @@ async function stopKnoxctlScan(): Promise<void> {
 		const pid = fs.readFileSync(pidFile, ENCODING).trim();
 		log(`Attempting to stop knoxctl scan process with PID: ${pid}`);
 		try {
-			await exec.exec("sudo", ["kill", "-SIGINT", pid]);
+			await sudoExec("kill", ["-SIGINT", pid]);
 			log("Sent SIGINT signal to knoxctl scan process");
 			await new Promise((resolve) => setTimeout(resolve, 5000));
 			try {
-				await exec.exec("sudo", ["kill", "-0", pid]);
+				await sudoExec("kill", ["-0", pid]);
 				log("Process is still running. Attempting to force kill...");
-				await exec.exec("sudo", ["kill", "-SIGKILL", pid]);
+				await sudoExec("kill", ["-SIGKILL", pid]);
 			} catch (error) {
 				log("knoxctl scan process has been terminated");
 			}
-			await exec.exec("sudo", ["rm", pidFile]);
+			await sudoExec("rm", [pidFile]);
 			log("Removed PID file");
 
-			// Change permissions of output files
-			const outputDir = getOutputDir();
-			log(`Attempting to change permissions of files in: ${outputDir}`);
-			try {
-				await exec.exec("sudo", ["chmod", "-R", "644", outputDir]);
-				await exec.exec("sudo", [
-					"chown",
-					"-R",
-					`${process.env.USER}:${process.env.USER}`,
-					outputDir,
-				]);
-				log("Changed permissions and ownership of output files");
-
-				// List directory contents to verify
-				const { stdout, stderr } = await exec.getExecOutput("ls", [
-					"-l",
-					outputDir,
-				]);
-				log("Directory contents after permission change:");
-				log(stdout);
-				if (stderr) {
-					log(`stderr: ${stderr}`, "warning");
-				}
-			} catch (error) {
-				log(
-					`Failed to change permissions of output files: ${error instanceof Error ? error.message : String(error)}`,
-					"error",
-				);
-			}
+			// Change permissions only for knoxctl_scan_ files
+			const workspaceDir = process.env.GITHUB_WORKSPACE || getOutputDir();
+			log(`Changing permissions of knoxctl_scan_ files in: ${workspaceDir}`);
+			await sudoExec("find", [
+				workspaceDir,
+				"-maxdepth",
+				"1",
+				"-type",
+				"f",
+				"-name",
+				"knoxctl_scan_*",
+				"-exec",
+				"chmod",
+				"644",
+				"{}",
+				"+",
+			]);
+			await sudoExec("find", [
+				workspaceDir,
+				"-maxdepth",
+				"1",
+				"-type",
+				"f",
+				"-name",
+				"knoxctl_scan_*",
+				"-exec",
+				"chown",
+				`${process.env.USER}:${process.env.USER}`,
+				"{}",
+				"+",
+			]);
+			log("Changed permissions and ownership of knoxctl_scan_ files");
 		} catch (error) {
 			log(
 				`Failed to stop knoxctl scan process: ${error instanceof Error ? error.message : String(error)}`,
@@ -160,21 +176,16 @@ async function getLatestFile(
 	directory: string,
 	prefix: string,
 ): Promise<string | null> {
-	log(`Searching for files with prefix "${prefix}" in directory: ${directory}`);
-
 	try {
-		const { stdout } = await exec.getExecOutput("sudo", [
-			"ls",
-			"-t",
-			directory,
-		]);
-		const files = stdout.split("\n").filter(Boolean);
-		log(`Files in directory: ${files.join(", ")}`);
-
-		const matchingFile = files.find(
-			(file) => file.startsWith(prefix) && file.endsWith(".md"),
-		);
-		return matchingFile || null;
+		const files = fs
+			.readdirSync(directory)
+			.filter((file) => file.startsWith(prefix) && file.endsWith(".md"))
+			.sort(
+				(a, b) =>
+					fs.statSync(path.join(directory, b)).mtime.getTime() -
+					fs.statSync(path.join(directory, a)).mtime.getTime(),
+			);
+		return files.length > 0 ? files[0] : null;
 	} catch (error) {
 		log(
 			`Error listing directory contents: ${error instanceof Error ? error.message : String(error)}`,
@@ -195,14 +206,11 @@ async function processResultFile(
 		const filePath = path.join(outputDir, file);
 		log(`Processing ${title} file: ${filePath}`);
 		try {
-			const { stdout: content } = await exec.getExecOutput("sudo", [
-				"cat",
-				filePath,
-			]);
+			const content = fs.readFileSync(filePath, ENCODING);
 			await addToSummaryWithSizeCheck(`${emoji} ${title}\n\n${content}`, title);
 		} catch (error) {
 			log(
-				`Error reading file ${filePath}: ${error instanceof Error ? error.message : String(error)}`,
+				`Failed to read content from ${filePath}: ${error instanceof Error ? error.message : String(error)}`,
 				"error",
 			);
 		}
@@ -214,7 +222,8 @@ async function processResultFile(
 }
 
 async function processResults(): Promise<void> {
-	const outputDir = path.resolve(getOutputDir());
+	const outputDir =
+		process.env.GITHUB_WORKSPACE || path.resolve(getOutputDir());
 	log(`Processing knoxctl results from directory: ${outputDir}`);
 
 	if (!fs.existsSync(outputDir)) {
@@ -222,23 +231,27 @@ async function processResults(): Promise<void> {
 		return;
 	}
 
-	if (!IS_GITHUB_ACTIONS) {
-		log(
-			"Running in local environment. Results will be displayed in the console.",
-			"warning",
-		);
-	}
-
 	await addToSummaryWithSizeCheck(
 		"📊 Runtime Security Report Generated by AccuKnox",
 		"Report Overview",
 	);
 
-	await processResultFile(outputDir, ALERTS_PREFIX, "Alerts Summary", "🚨");
-	await processResultFile(outputDir, PROCESS_TREE_PREFIX, "Process Tree", "🖥️");
+	// Process alerts first as they are most important
 	await processResultFile(
 		outputDir,
-		NETWORK_EVENTS_PREFIX,
+		"knoxctl_scan_processed_alerts_",
+		"Alerts Summary",
+		"🚨",
+	);
+	await processResultFile(
+		outputDir,
+		"knoxctl_scan_process_tree_",
+		"Process Tree",
+		"🖥️",
+	);
+	await processResultFile(
+		outputDir,
+		"knoxctl_scan_network_events_md_",
 		"Network Events",
 		"🌐",
 	);
@@ -292,21 +305,20 @@ async function uploadArtifacts(outputDir: string): Promise<void> {
 
 	const artifactClient = artifact.create();
 	const artifactName = "knoxctl-scan-results";
-	const files = fs
-		.readdirSync(outputDir)
-		.filter((file) => file.startsWith("knoxctl_scan_"))
-		.map((file) => path.join(outputDir, file));
-
-	log(`Uploading ${files.length} files as artifacts`);
 
 	try {
+		const files = fs
+			.readdirSync(outputDir)
+			.filter((file) => file.startsWith("knoxctl_scan_"))
+			.map((file) => path.join(outputDir, file));
+
+		log(`Uploading ${files.length} files as artifacts`);
+
 		const uploadResult = await artifactClient.uploadArtifact(
 			artifactName,
 			files,
 			outputDir,
-			{
-				continueOnError: false,
-			},
+			{ continueOnError: false },
 		);
 
 		log(
