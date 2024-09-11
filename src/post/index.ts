@@ -41,14 +41,13 @@ async function uploadContentAsArtifact(
 	const tempDir = path.join(getOutputDir(), "temp-artifacts");
 	const tempFile = path.join(tempDir, fileName);
 
+	if (!fs.existsSync(tempDir)) {
+		fs.mkdirSync(tempDir, { recursive: true });
+	}
+
+	fs.writeFileSync(tempFile, content, ENCODING);
+
 	try {
-		await exec.exec("sudo", ["mkdir", "-p", tempDir]);
-
-		// Convert content to Buffer
-		const contentBuffer = Buffer.from(content, "utf-8");
-
-		await exec.exec("sudo", ["tee", tempFile], { input: contentBuffer });
-
 		const uploadResult = await artifactClient.uploadArtifact(
 			artifactName,
 			[tempFile],
@@ -65,14 +64,7 @@ async function uploadContentAsArtifact(
 		);
 		return "";
 	} finally {
-		try {
-			await exec.exec("sudo", ["rm", "-f", tempFile]);
-		} catch (error) {
-			log(
-				`Failed to remove temporary file: ${error instanceof Error ? error.message : String(error)}`,
-				"warning",
-			);
-		}
+		fs.unlinkSync(tempFile);
 	}
 }
 
@@ -105,32 +97,52 @@ async function addToSummaryWithSizeCheck(
 
 async function stopKnoxctlScan(): Promise<void> {
 	const pidFile = getPidFilePath();
-	if ((await exec.exec("sudo", ["test", "-f", pidFile])) === 0) {
-		const { stdout: pid } = await exec.getExecOutput("sudo", ["cat", pidFile]);
-		log(`Attempting to stop knoxctl scan process with PID: ${pid.trim()}`);
+	if (fs.existsSync(pidFile)) {
+		const pid = fs.readFileSync(pidFile, ENCODING).trim();
+		log(`Attempting to stop knoxctl scan process with PID: ${pid}`);
 		try {
-			await exec.exec("sudo", ["kill", "-SIGINT", pid.trim()]);
+			await exec.exec("sudo", ["kill", "-SIGINT", pid]);
 			log("Sent SIGINT signal to knoxctl scan process");
 			await new Promise((resolve) => setTimeout(resolve, 5000));
 			try {
-				await exec.exec("sudo", ["kill", "-0", pid.trim()]);
+				await exec.exec("sudo", ["kill", "-0", pid]);
 				log("Process is still running. Attempting to force kill...");
-				await exec.exec("sudo", ["kill", "-SIGKILL", pid.trim()]);
+				await exec.exec("sudo", ["kill", "-SIGKILL", pid]);
 			} catch (error) {
 				log("knoxctl scan process has been terminated");
 			}
-			await exec.exec("sudo", ["rm", "-f", pidFile]);
+			await exec.exec("sudo", ["rm", pidFile]);
 			log("Removed PID file");
 
+			// Change permissions of output files
 			const outputDir = getOutputDir();
-			log(`Checking permissions of files in: ${outputDir}`);
-			const { stdout } = await exec.getExecOutput("sudo", [
-				"ls",
-				"-l",
-				outputDir,
-			]);
-			log("File permissions:");
-			log(stdout);
+			log(`Attempting to change permissions of files in: ${outputDir}`);
+			try {
+				await exec.exec("sudo", ["chmod", "-R", "644", outputDir]);
+				await exec.exec("sudo", [
+					"chown",
+					"-R",
+					`${process.env.USER}:${process.env.USER}`,
+					outputDir,
+				]);
+				log("Changed permissions and ownership of output files");
+
+				// List directory contents to verify
+				const { stdout, stderr } = await exec.getExecOutput("ls", [
+					"-l",
+					outputDir,
+				]);
+				log("Directory contents after permission change:");
+				log(stdout);
+				if (stderr) {
+					log(`stderr: ${stderr}`, "warning");
+				}
+			} catch (error) {
+				log(
+					`Failed to change permissions of output files: ${error instanceof Error ? error.message : String(error)}`,
+					"error",
+				);
+			}
 		} catch (error) {
 			log(
 				`Failed to stop knoxctl scan process: ${error instanceof Error ? error.message : String(error)}`,
@@ -151,38 +163,21 @@ async function getLatestFile(
 	log(`Searching for files with prefix "${prefix}" in directory: ${directory}`);
 
 	try {
-		const { stdout: filesStr } = await exec.getExecOutput("sudo", [
+		const { stdout } = await exec.getExecOutput("sudo", [
 			"ls",
 			"-t",
 			directory,
 		]);
-		const files = filesStr.split("\n").filter(Boolean);
+		const files = stdout.split("\n").filter(Boolean);
 		log(`Files in directory: ${files.join(", ")}`);
 
-		const matchingFiles = await Promise.all(
-			files
-				.filter((file) => file.startsWith(prefix) && file.endsWith(".md"))
-				.map(async (file) => {
-					const { stdout: timeStr } = await exec.getExecOutput("sudo", [
-						"stat",
-						"-c",
-						"%Y",
-						path.join(directory, file),
-					]);
-					return {
-						name: file,
-						time: Number.parseInt(timeStr.trim(), 10),
-					};
-				}),
+		const matchingFile = files.find(
+			(file) => file.startsWith(prefix) && file.endsWith(".md"),
 		);
-
-		matchingFiles.sort((a, b) => b.time - a.time);
-
-		log(`Matching files: ${matchingFiles.map((f) => f.name).join(", ")}`);
-		return matchingFiles.length > 0 ? matchingFiles[0].name : null;
+		return matchingFile || null;
 	} catch (error) {
 		log(
-			`Error listing directory: ${error instanceof Error ? error.message : String(error)}`,
+			`Error listing directory contents: ${error instanceof Error ? error.message : String(error)}`,
 			"error",
 		);
 		return null;
@@ -222,6 +217,11 @@ async function processResults(): Promise<void> {
 	const outputDir = path.resolve(getOutputDir());
 	log(`Processing knoxctl results from directory: ${outputDir}`);
 
+	if (!fs.existsSync(outputDir)) {
+		log(`Output directory does not exist: ${outputDir}`, "error");
+		return;
+	}
+
 	if (!IS_GITHUB_ACTIONS) {
 		log(
 			"Running in local environment. Results will be displayed in the console.",
@@ -252,17 +252,15 @@ async function processResults(): Promise<void> {
 
 async function run(): Promise<void> {
 	try {
-		await stopKnoxctlScan();
-		await new Promise((resolve) => setTimeout(resolve, 10000));
+		await new Promise<void>((resolve) => {
+			stopKnoxctlScan();
+			setTimeout(resolve, 10000);
+		});
 
 		const outputDir = getOutputDir();
 		log(`Output directory: ${outputDir}`);
 		log("Contents of output directory:");
-		const { stdout: filesStr } = await exec.getExecOutput("sudo", [
-			"ls",
-			outputDir,
-		]);
-		const files = filesStr.split("\n").filter(Boolean);
+		const files = fs.readdirSync(outputDir);
 		for (const file of files) {
 			if (file.startsWith("knoxctl_scan_")) {
 				log(`- ${file}`);
@@ -294,12 +292,8 @@ async function uploadArtifacts(outputDir: string): Promise<void> {
 
 	const artifactClient = artifact.create();
 	const artifactName = "knoxctl-scan-results";
-	const { stdout: filesStr } = await exec.getExecOutput("sudo", [
-		"ls",
-		outputDir,
-	]);
-	const files = filesStr
-		.split("\n")
+	const files = fs
+		.readdirSync(outputDir)
 		.filter((file) => file.startsWith("knoxctl_scan_"))
 		.map((file) => path.join(outputDir, file));
 
